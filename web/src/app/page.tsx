@@ -19,6 +19,7 @@ export default function HomePage() {
   ]);
 
   const [view, setView] = useState<View>("new");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [submissions, setSubmissions] = useState<SubmissionOut[]>([]);
   const [schools, setSchools] = useState<SchoolOut[]>([]);
   const [forms, setForms] = useState<ModerationFormOut[]>([]);
@@ -155,6 +156,13 @@ export default function HomePage() {
         <div className="topbar-sep" />
         <div className="topbar-inst">{user.institution_name ?? "ExamMind"}</div>
         <div className="topbar-right">
+          <button
+            className="menu-toggle"
+            onClick={() => setSidebarOpen((v) => !v)}
+            aria-label="Toggle menu"
+          >
+            ☰
+          </button>
           <div className="topbar-user-pill">
             <div className="topbar-avatar">{initials}</div>
             <div>
@@ -172,18 +180,24 @@ export default function HomePage() {
       </div>
 
       <div className="app-body">
+        {sidebarOpen && (
+          <div
+            className="sidebar-overlay"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
         {/* Sidebar */}
-        <nav className="sidebar">
+        <nav className={`sidebar${sidebarOpen ? " sidebar-open" : ""}`}>
           <div className="nav-group-label">Main</div>
           <button
             className={`nav-item ${view === "new" ? "active" : ""}`}
-            onClick={() => setView("new")}
+            onClick={() => { setView("new"); setSidebarOpen(false); }}
           >
             <span className="nav-icon">📤</span> New Moderation
           </button>
           <button
             className={`nav-item ${view === "history" ? "active" : ""}`}
-            onClick={() => setView("history")}
+            onClick={() => { setView("history"); setSidebarOpen(false); }}
           >
             <span className="nav-icon">📋</span> My Submissions
             {submissions.length > 0 && (
@@ -193,7 +207,7 @@ export default function HomePage() {
           {pendingCount > 0 && (
             <>
               <div className="nav-group-label">Status</div>
-              <button className="nav-item" onClick={() => setView("history")}>
+              <button className="nav-item" onClick={() => { setView("history"); setSidebarOpen(false); }}>
                 <span className="nav-icon">⏳</span> Processing
                 <span className="nav-badge red">{pendingCount}</span>
               </button>

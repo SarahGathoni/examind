@@ -247,13 +247,26 @@ input,select,textarea{font-family:inherit;font-size:13px;outline:none;}
 .form-upload-card{border:2px dashed var(--border2);border-radius:12px;padding:24px;text-align:center;cursor:pointer;transition:all .2s;}
 .form-upload-card:hover{border-color:var(--blue2);background:var(--blue-lt);}
 
+/* ── HAMBURGER & MOBILE OVERLAY ── */
+.menu-toggle{display:none;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);cursor:pointer;flex-shrink:0;color:rgba(255,255,255,.8);font-size:18px;line-height:1;}
+.menu-toggle:hover{background:rgba(255,255,255,.14);}
+.sidebar-overlay{position:fixed;inset:0;top:58px;background:rgba(0,0,0,.45);z-index:99;}
+
 @media(max-width:900px){
   .auth-left{display:none;}
   .auth-right{width:100%;}
-  .sidebar{display:none;}
   .grid-2,.grid-3{grid-template-columns:1fr;}
   .dash-stats{grid-template-columns:1fr 1fr;}
   .score-strip{grid-template-columns:1fr 1fr 1fr;}
+  /* Topbar responsive */
+  .topbar{padding:0 14px;gap:10px;}
+  .topbar-sep{display:none;}
+  .topbar-inst{display:none;}
+  .topbar-uname,.topbar-urole{display:none;}
+  .menu-toggle{display:flex;}
+  /* Sidebar as slide-in drawer */
+  .sidebar{position:fixed;left:-240px;top:58px;height:calc(100vh - 58px);z-index:100;transition:left .25s ease;box-shadow:none;width:230px;}
+  .sidebar.sidebar-open{left:0;box-shadow:4px 0 24px rgba(0,0,0,.18);}
 }
 
 /* ── LOGIN PAGE ── */

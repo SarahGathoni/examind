@@ -3,7 +3,13 @@
 import React from "react";
 import { useAuth, roleLabel, userInitials } from "@/lib/auth";
 
-export function AdminLayout({ children }: { children: React.ReactNode }) {
+export function AdminLayout({
+  children,
+  onMenuToggle,
+}: {
+  children: React.ReactNode;
+  onMenuToggle?: () => void;
+}) {
   const { user, logout } = useAuth();
 
   const initials = user ? userInitials(user.full_name) : "?";
@@ -21,6 +27,13 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           {user?.institution_name ?? "Administration"}
         </div>
         <div className="topbar-right">
+          <button
+            className="menu-toggle"
+            onClick={onMenuToggle}
+            aria-label="Toggle menu"
+          >
+            ☰
+          </button>
           <div className="topbar-user-pill">
             <div className="topbar-avatar">{initials}</div>
             <div>

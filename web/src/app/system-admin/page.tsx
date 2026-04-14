@@ -12,6 +12,7 @@ type SysView = "overview" | "institutions";
 export default function SystemAdminPage() {
   const { user, isLoading } = useRequireAuth(["system_admin"]);
   const [view, setView] = useState<SysView>("overview");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [stats, setStats] = useState<PlatformStats | null>(null);
 
   useEffect(() => {
@@ -35,18 +36,24 @@ export default function SystemAdminPage() {
   }
 
   return (
-    <AdminLayout>
-      <nav className="sidebar">
+    <AdminLayout onMenuToggle={() => setSidebarOpen((v) => !v)}>
+      {sidebarOpen && (
+        <div
+          className="sidebar-overlay"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      <nav className={`sidebar${sidebarOpen ? " sidebar-open" : ""}`}>
         <div className="nav-group-label">System Admin</div>
         <button
           className={`nav-item ${view === "overview" ? "active" : ""}`}
-          onClick={() => setView("overview")}
+          onClick={() => { setView("overview"); setSidebarOpen(false); }}
         >
           <span className="nav-icon">📊</span> Platform Overview
         </button>
         <button
           className={`nav-item ${view === "institutions" ? "active" : ""}`}
-          onClick={() => setView("institutions")}
+          onClick={() => { setView("institutions"); setSidebarOpen(false); }}
         >
           <span className="nav-icon">🌍</span> Institutions
         </button>

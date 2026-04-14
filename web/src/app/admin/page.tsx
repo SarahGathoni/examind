@@ -17,6 +17,7 @@ type AdminView = "overview" | "schools" | "roles";
 export default function AdminPage() {
   const { user, isLoading } = useRequireAuth(["admin", "system_admin"]);
   const [view, setView] = useState<AdminView>("overview");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [recentSubs, setRecentSubs] = useState<SubmissionOut[]>([]);
   const [stats, setStats] = useState({
     total: 0,
@@ -76,24 +77,30 @@ export default function AdminPage() {
   }
 
   return (
-    <AdminLayout>
-      <nav className="sidebar">
+    <AdminLayout onMenuToggle={() => setSidebarOpen((v) => !v)}>
+      {sidebarOpen && (
+        <div
+          className="sidebar-overlay"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      <nav className={`sidebar${sidebarOpen ? " sidebar-open" : ""}`}>
         <div className="nav-group-label">Admin Console</div>
         <button
           className={`nav-item ${view === "overview" ? "active" : ""}`}
-          onClick={() => setView("overview")}
+          onClick={() => { setView("overview"); setSidebarOpen(false); }}
         >
           <span className="nav-icon">📊</span> Institution Dashboard
         </button>
         <button
           className={`nav-item ${view === "schools" ? "active" : ""}`}
-          onClick={() => setView("schools")}
+          onClick={() => { setView("schools"); setSidebarOpen(false); }}
         >
           <span className="nav-icon">🏫</span> Schools &amp; Forms
         </button>
         <button
           className={`nav-item ${view === "roles" ? "active" : ""}`}
-          onClick={() => setView("roles")}
+          onClick={() => { setView("roles"); setSidebarOpen(false); }}
         >
           <span className="nav-icon">👥</span> User Roles
         </button>
