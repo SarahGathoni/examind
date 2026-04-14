@@ -135,6 +135,8 @@ export const submissionsApi = {
 // ── AI Config ──────────────────────────────────────────────────────────────────
 export const aiConfigApi = {
   get: () => apiFetch<AiConfigOut | null>("/api/ai-config"),
+  /** Accessible to any authenticated role — never returns the raw key. */
+  status: () => apiFetch<AiConfigOut | null>("/api/ai-config/status"),
   save: (data: { provider: string; api_key: string }) =>
     apiFetch<AiConfigOut>("/api/ai-config", {
       method: "POST",

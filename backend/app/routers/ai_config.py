@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..dependencies import require_roles
+from ..dependencies import require_roles, get_current_user
 from ..models import AiConfig, User
 from ..schemas import AiConfigOut, AiConfigCreate
 
@@ -16,6 +16,20 @@ def get_ai_config(
     db: Session = Depends(get_db),
     current_user: User = Depends(_require_admin),
 ):
+    if not current_user.institution_id:
+        return None
+    cfg = db.query(AiConfig).filter(
+        AiConfig.institution_id == current_user.institution_id
+    ).first()
+    return cfg
+
+
+@router.get("/status", response_model=AiConfigOut | None)
+def get_ai_config_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Read-only check for any authenticated user — never exposes the raw key."""
     if not current_user.institution_id:
         return None
     cfg = db.query(AiConfig).filter(

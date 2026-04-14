@@ -49,7 +49,7 @@ export default function HomePage() {
       const [subs, schoolList, aiCfg] = await Promise.all([
         submissionsApi.list(),
         schoolsApi.list(),
-        aiConfigApi.get(),
+        aiConfigApi.status(),
       ]);
       setSubmissions(subs);
       setSchools(schoolList);
