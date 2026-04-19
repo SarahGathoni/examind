@@ -160,6 +160,34 @@ Return a JSON object with this EXACT structure:
 }}"""
 
 
+def _parse_ai_json(raw: str, provider: str) -> dict:
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+    raw = raw.strip()
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as e:
+        logger.error("Failed to parse %s JSON response: %s\nRaw: %.500s", provider, e, raw)
+        raise RuntimeError(f"{provider} returned invalid JSON: {e}") from e
+
+
+def _http_post(url: str, payload: bytes, headers: dict) -> bytes:
+    req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            return resp.read()
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        logger.error("HTTP %s from %s: %s", e.code, url, body)
+        raise RuntimeError(f"API returned HTTP {e.code}: {body}") from e
+    except urllib.error.URLError as e:
+        logger.error("Network error calling %s: %s", url, e.reason)
+        raise RuntimeError(f"Network error: {e.reason}") from e
+
+
 def call_claude(prompt: str, api_key: str) -> dict:
     payload = json.dumps({
         "model": "claude-sonnet-4-6",
@@ -167,39 +195,33 @@ def call_claude(prompt: str, api_key: str) -> dict:
         "system": SYSTEM_PROMPT,
         "messages": [{"role": "user", "content": prompt}],
     }).encode("utf-8")
-
-    req = urllib.request.Request(
+    raw_bytes = _http_post(
         "https://api.anthropic.com/v1/messages",
-        data=payload,
-        headers={
+        payload,
+        {
             "Content-Type": "application/json",
             "x-api-key": api_key,
             "anthropic-version": "2023-06-01",
         },
-        method="POST",
     )
-    try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            data = json.loads(resp.read())
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8", errors="replace")
-        logger.error("Claude API HTTP %s error: %s", e.code, body)
-        raise RuntimeError(f"Claude API returned HTTP {e.code}: {body}") from e
-    except urllib.error.URLError as e:
-        logger.error("Claude API network error: %s", e.reason)
-        raise RuntimeError(f"Claude API network error: {e.reason}") from e
+    data = json.loads(raw_bytes)
+    raw = data["content"][0]["text"]
+    logger.info("Claude response length: %d chars", len(raw))
+    return _parse_ai_json(raw, "Claude")
 
-    raw = data["content"][0]["text"].strip()
-    logger.info("Claude raw response length: %d chars", len(raw))
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    try:
-        return json.loads(raw.strip())
-    except json.JSONDecodeError as e:
-        logger.error("Failed to parse Claude JSON response: %s\nRaw: %.500s", e, raw)
-        raise RuntimeError(f"Claude returned invalid JSON: {e}") from e
+
+def call_gemini(prompt: str, api_key: str) -> dict:
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+    payload = json.dumps({
+        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"maxOutputTokens": 8192, "temperature": 0.1},
+    }).encode("utf-8")
+    raw_bytes = _http_post(url, payload, {"Content-Type": "application/json"})
+    data = json.loads(raw_bytes)
+    raw = data["candidates"][0]["content"]["parts"][0]["text"]
+    logger.info("Gemini response length: %d chars", len(raw))
+    return _parse_ai_json(raw, "Gemini")
 
 
 # ── PDF REPORT GENERATION ──────────────────────────────────────────────────────
@@ -582,8 +604,13 @@ def moderate_exam(
 
     prompt = build_prompt(exam_text, criteria_text, meta)
 
-    # For now only Claude is supported; extend here for Gemini/OpenAI later
-    result = call_claude(prompt, api_key)
+    logger.info("Calling provider: %s", provider)
+    if provider == "gemini":
+        result = call_gemini(prompt, api_key)
+    elif provider in ("anthropic", "claude"):
+        result = call_claude(prompt, api_key)
+    else:
+        raise ValueError(f"Unsupported AI provider: '{provider}'. Use 'anthropic' or 'gemini'.")
 
     # Save raw result JSON for the submissions router to read
     result_json_path = os.path.join(settings.REPORTS_DIR, f"{submission_id}_result.json")
