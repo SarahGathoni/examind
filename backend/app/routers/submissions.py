@@ -1,3 +1,4 @@
+import logging
 import os
 import shutil
 import uuid
@@ -15,6 +16,8 @@ from ..dependencies import get_current_user
 from ..models import ExamSubmission, ModerationResult, AiConfig, ModerationForm, User
 from ..schemas import SubmissionOut
 from ..config import settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/submissions", tags=["submissions"])
 
@@ -191,10 +194,12 @@ def run_moderation(submission_id: str):
     try:
         sub = db.query(ExamSubmission).filter(ExamSubmission.id == submission_id).first()
         if not sub:
+            logger.error("[moderation] Submission %s not found in DB", submission_id)
             return
 
         sub.status = "processing"
         db.commit()
+        logger.info("[moderation] Starting moderation for submission %s (%s)", submission_id, sub.reference)
 
         # Get AI config
         ai_cfg = None
@@ -204,9 +209,16 @@ def run_moderation(submission_id: str):
             ).first()
 
         if not ai_cfg:
+            logger.error(
+                "[moderation] No AI config for institution_id=%s (submission %s). "
+                "Admin must save an API key under AI Configuration.",
+                sub.institution_id, submission_id,
+            )
             sub.status = "failed"
             db.commit()
             return
+
+        logger.info("[moderation] AI config found: provider=%s", ai_cfg.provider)
 
         # Get form text if form_id provided
         form_text = None
@@ -214,11 +226,17 @@ def run_moderation(submission_id: str):
             form_rec = db.query(ModerationForm).filter(ModerationForm.id == sub.form_id).first()
             if form_rec:
                 form_path = os.path.join(settings.UPLOADS_DIR, form_rec.filename)
+                logger.info("[moderation] Loading moderation form: %s", form_path)
                 try:
                     from ..services.moderation_service import extract_text
                     form_text = extract_text(form_path)
-                except Exception:
-                    pass
+                    logger.info("[moderation] Form text extracted (%d chars)", len(form_text))
+                except Exception as fe:
+                    logger.warning("[moderation] Could not extract form text: %s — using default criteria", fe)
+            else:
+                logger.warning("[moderation] form_id=%s not found in DB — using default criteria", sub.form_id)
+        else:
+            logger.info("[moderation] No form_id provided — using default criteria")
 
         meta = {
             "course": sub.course_name,
@@ -232,6 +250,8 @@ def run_moderation(submission_id: str):
         }
 
         exam_path = os.path.join(settings.UPLOADS_DIR, sub.exam_filename)
+        logger.info("[moderation] Exam file: %s  exists=%s", exam_path, os.path.exists(exam_path))
+
         report_filename = moderate_exam(
             exam_path=exam_path,
             form_text=form_text,
@@ -242,7 +262,6 @@ def run_moderation(submission_id: str):
         )
 
         import json
-        # Read result JSON back (moderate_exam writes it to disk too)
         result_path = os.path.join(settings.REPORTS_DIR, f"{submission_id}_result.json")
         result_data = {}
         if os.path.exists(result_path):
@@ -259,8 +278,10 @@ def run_moderation(submission_id: str):
         db.add(mod_result)
         sub.status = "completed"
         db.commit()
+        logger.info("[moderation] Completed submission %s — verdict: %s", submission_id, result_data.get("verdict"))
 
     except Exception as e:
+        logger.exception("[moderation] FAILED for submission %s: %s", submission_id, e)
         try:
             sub = db.query(ExamSubmission).filter(ExamSubmission.id == submission_id).first()
             if sub:

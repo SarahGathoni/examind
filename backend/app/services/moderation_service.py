@@ -7,11 +7,15 @@ Handles:
   3. PDF report generation with ReportLab
 """
 
+import logging
 import os
 import json
+import urllib.error
 import urllib.request
 from datetime import datetime
 from io import BytesIO
+
+logger = logging.getLogger(__name__)
 
 from ..config import settings
 
@@ -174,15 +178,28 @@ def call_claude(prompt: str, api_key: str) -> dict:
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        data = json.loads(resp.read())
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            data = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        logger.error("Claude API HTTP %s error: %s", e.code, body)
+        raise RuntimeError(f"Claude API returned HTTP {e.code}: {body}") from e
+    except urllib.error.URLError as e:
+        logger.error("Claude API network error: %s", e.reason)
+        raise RuntimeError(f"Claude API network error: {e.reason}") from e
 
     raw = data["content"][0]["text"].strip()
+    logger.info("Claude raw response length: %d chars", len(raw))
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):
             raw = raw[4:]
-    return json.loads(raw.strip())
+    try:
+        return json.loads(raw.strip())
+    except json.JSONDecodeError as e:
+        logger.error("Failed to parse Claude JSON response: %s\nRaw: %.500s", e, raw)
+        raise RuntimeError(f"Claude returned invalid JSON: {e}") from e
 
 
 # ── PDF REPORT GENERATION ──────────────────────────────────────────────────────
