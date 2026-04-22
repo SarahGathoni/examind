@@ -12,6 +12,7 @@ logging.basicConfig(
 
 from .database import Base, engine, create_dirs
 from .config import settings
+from .models import User
 from .routers import auth, users, institutions, schools, submissions, ai_config
 
 app = FastAPI(
@@ -44,6 +45,55 @@ app.add_middleware(
 def startup():
     create_dirs()
     Base.metadata.create_all(bind=engine)
+    _auto_seed()
+
+
+def _auto_seed():
+    """Create seed data if the database is empty (first deploy)."""
+    from .database import SessionLocal
+    from .models import Institution, School
+    from .security import hash_password
+    db = SessionLocal()
+    try:
+        if db.query(User).count() > 0:
+            return  # already seeded
+
+        inst = Institution(name="Kabarak University", code="KABARAK", country="Kenya")
+        db.add(inst)
+        db.flush()
+
+        school_names = ["School of Nursing", "School of Medicine", "School of Engineering"]
+        schools = {}
+        for name in school_names:
+            s = School(name=name, institution_id=inst.id)
+            db.add(s)
+            db.flush()
+            schools[name] = s
+
+        seed_users = [
+            ("admin@examind.io",        "Admin@1234",  "ExamMind Admin",    "system_admin", None,                          None),
+            ("admin@kabarak.ac.ke",      "Admin@1234",  "Kabarak Admin",     "admin",        inst.id,                       None),
+            ("examiner@kabarak.ac.ke",   "Exam@1234",   "Dr. Mary Wanjiru",  "examiner",     inst.id, schools["School of Nursing"].id),
+            ("moderator@kabarak.ac.ke",  "Mod@1234",    "Dr. Bryant Sang",   "moderator",    inst.id, schools["School of Medicine"].id),
+            ("hod@kabarak.ac.ke",        "Hod@1234",    "Prof. Valerie Suge","hod",          inst.id, schools["School of Nursing"].id),
+        ]
+        for email, pwd, name, role, inst_id, school_id in seed_users:
+            db.add(User(
+                email=email,
+                password_hash=hash_password(pwd),
+                full_name=name,
+                role=role,
+                institution_id=inst_id,
+                school_id=school_id,
+                is_active=True,
+            ))
+        db.commit()
+        logging.getLogger(__name__).info("Auto-seed complete — default users created.")
+    except Exception:
+        db.rollback()
+        logging.getLogger(__name__).exception("Auto-seed failed")
+    finally:
+        db.close()
 
 
 # ── ROUTERS ────────────────────────────────────────────────────────────────────
