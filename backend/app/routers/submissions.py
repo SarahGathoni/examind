@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import shutil
@@ -9,6 +10,7 @@ from fastapi import (
     UploadFile, File, status
 )
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..database import get_db, SessionLocal
@@ -16,6 +18,11 @@ from ..dependencies import get_current_user
 from ..models import ExamSubmission, ModerationResult, AiConfig, ModerationForm, User
 from ..schemas import SubmissionOut
 from ..config import settings
+
+
+class _ChatBody(BaseModel):
+    message: str
+    history: list[dict] = []
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +190,95 @@ def get_report(
         media_type="application/pdf",
         filename=f"Moderation_Report_{sub.reference}.pdf",
     )
+
+
+@router.get("/{submission_id}/result")
+def get_result(
+    submission_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    sub = db.query(ExamSubmission).filter(ExamSubmission.id == submission_id).first()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    if current_user.role == "examiner" and sub.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not sub.result:
+        raise HTTPException(status_code=404, detail="Result not yet available")
+    return json.loads(sub.result.result_json)
+
+
+@router.post("/{submission_id}/chat")
+def chat_about_submission(
+    submission_id: str,
+    body: _ChatBody,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    sub = db.query(ExamSubmission).filter(ExamSubmission.id == submission_id).first()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    if current_user.role == "examiner" and sub.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not sub.result:
+        raise HTTPException(status_code=400, detail="No moderation result available yet")
+
+    ai_cfg = db.query(AiConfig).filter(
+        AiConfig.institution_id == sub.institution_id
+    ).first()
+    if not ai_cfg:
+        raise HTTPException(status_code=400, detail="No AI configuration found for this institution")
+
+    result_data = json.loads(sub.result.result_json)
+    system_prompt = (
+        f"You are an expert exam moderation assistant. The AI has completed moderation of "
+        f"'{sub.course_name}' with these results:\n"
+        f"- Score: {result_data.get('overall_score', 'N/A')}/100\n"
+        f"- Verdict: {result_data.get('verdict', 'N/A')}\n"
+        f"- Strengths: {', '.join(result_data.get('strengths', []))}\n"
+        f"- Weaknesses: {', '.join(result_data.get('weaknesses', []))}\n"
+        f"- Critical Issues: {', '.join(result_data.get('critical_issues', [])) or 'None'}\n\n"
+        f"Full report:\n{json.dumps(result_data, indent=2)}\n\n"
+        f"Answer questions concisely and helpfully, referencing specific data from the report."
+    )
+
+    from ..services.moderation_service import _http_post
+
+    if ai_cfg.provider == "gemini":
+        contents = []
+        for msg in body.history[-10:]:
+            role = "model" if msg.get("role") == "assistant" else "user"
+            contents.append({"role": role, "parts": [{"text": msg.get("content", "")}]})
+        contents.append({"role": "user", "parts": [{"text": body.message}]})
+        payload = json.dumps({
+            "systemInstruction": {"parts": [{"text": system_prompt}]},
+            "contents": contents,
+            "generationConfig": {"maxOutputTokens": 1024, "temperature": 0.3},
+        }).encode("utf-8")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key={ai_cfg.api_key_encrypted}"
+        raw = json.loads(_http_post(url, payload, {"Content-Type": "application/json"}))
+        answer = raw["candidates"][0]["content"]["parts"][0]["text"]
+    else:
+        messages = [
+            {"role": msg.get("role", "user"), "content": msg.get("content", "")}
+            for msg in body.history[-10:]
+        ]
+        messages.append({"role": "user", "content": body.message})
+        payload = json.dumps({
+            "model": "claude-sonnet-4-6",
+            "max_tokens": 1024,
+            "system": system_prompt,
+            "messages": messages,
+        }).encode("utf-8")
+        raw = json.loads(_http_post(
+            "https://api.anthropic.com/v1/messages",
+            payload,
+            {"Content-Type": "application/json", "x-api-key": ai_cfg.api_key_encrypted,
+             "anthropic-version": "2023-06-01"},
+        ))
+        answer = raw["content"][0]["text"]
+
+    return {"answer": answer}
 
 
 # ── Background AI analysis ────────────────────────────────────────────────────

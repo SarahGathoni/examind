@@ -129,6 +129,13 @@ export const submissionsApi = {
     });
     return apiFetchForm<SubmissionOut>("/api/submissions", fd);
   },
+  getResult: (id: string) =>
+    apiFetch<ModerationResultData>(`/api/submissions/${id}/result`),
+  chat: (id: string, message: string, history: ChatHistoryItem[]) =>
+    apiFetch<{ answer: string }>(`/api/submissions/${id}/chat`, {
+      method: "POST",
+      body: JSON.stringify({ message, history }),
+    }),
   downloadReport: async (id: string, filename: string): Promise<void> => {
     const token = getToken();
     const headers: Record<string, string> = {};
@@ -248,6 +255,51 @@ export interface AiConfigOut {
   institution_id: string;
   provider: string;
   updated_at: string;
+}
+
+export interface ChatHistoryItem {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ModerationResultData {
+  overall_score: number;
+  verdict: string;
+  verdict_justification: string;
+  question_count: number;
+  section_count: number;
+  criteria_scores: Array<{
+    criterion: string;
+    score: number;
+    max_score: number;
+    rating: string;
+    comment: string;
+  }>;
+  blooms_distribution: Array<{
+    level: string;
+    count: number;
+    marks: number;
+    percentage: number;
+    adequate: boolean;
+  }>;
+  question_analysis: Array<{
+    reference: string;
+    marks: number;
+    bloom_level: string;
+    clarity_rating: string;
+    comment: string;
+  }>;
+  strengths: string[];
+  weaknesses: string[];
+  critical_issues: string[];
+  moderator_remarks: {
+    paragraph_1_overview: string;
+    paragraph_2_academic_quality: string;
+    paragraph_3_specific_feedback: string;
+    paragraph_4_recommendation: string;
+  };
+  required_actions: Array<{ priority: string; action: string; deadline: string }>;
+  moderation_checklist: Array<{ item: string; status: string; note: string }>;
 }
 
 export interface PlatformStats {
