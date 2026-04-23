@@ -143,6 +143,14 @@ class SubmissionCreate(BaseModel):
     form_id: str | None = None
 
 
+class SubmissionUpdate(BaseModel):
+    course_name: str | None = None
+    department: str | None = None
+    level: str | None = None
+    duration: str | None = None
+    total_marks: str | None = None
+
+
 # ── Stats ──────────────────────────────────────────────────────────────────────
 
 class PlatformStats(BaseModel):

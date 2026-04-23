@@ -102,6 +102,16 @@ export default function HomePage() {
   const [chatLoading, setChatLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // Edit submission
+  const [editingSub, setEditingSub] = useState<SubmissionOut | null>(null);
+  const [editFields, setEditFields] = useState({ course_name: "", department: "", level: "", duration: "", total_marks: "" });
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState("");
+
+  // Delete submission
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
   useEffect(() => {
     if (!user) return;
     loadData();
@@ -220,6 +230,41 @@ export default function HomePage() {
       setView("results");
     } catch {
       alert("Could not load result data.");
+    }
+  }
+
+  function openEdit(s: SubmissionOut) {
+    setEditingSub(s);
+    setEditFields({ course_name: s.course_name, department: s.department, level: s.level, duration: s.duration, total_marks: s.total_marks });
+    setEditError("");
+  }
+
+  async function handleEditSave() {
+    if (!editingSub) return;
+    setEditLoading(true);
+    setEditError("");
+    try {
+      const updated = await submissionsApi.update(editingSub.id, editFields);
+      setSubmissions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      setEditingSub(null);
+    } catch (err: unknown) {
+      setEditError(err instanceof Error ? err.message : "Update failed.");
+    } finally {
+      setEditLoading(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deletingId) return;
+    setDeleteLoading(true);
+    try {
+      await submissionsApi.remove(deletingId);
+      setSubmissions((prev) => prev.filter((s) => s.id !== deletingId));
+      setDeletingId(null);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Delete failed.");
+    } finally {
+      setDeleteLoading(false);
     }
   }
 
@@ -489,7 +534,7 @@ export default function HomePage() {
                           <td>{new Date(s.created_at).toLocaleDateString()}</td>
                           <td>{s.overall_score != null ? <strong>{s.overall_score}/100</strong> : "—"}</td>
                           <td>{verdictTag(s.status, s.verdict)}</td>
-                          <td style={{ display: "flex", gap: 6 }}>
+                          <td style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                             {s.status === "completed" && (
                               <button className="btn btn-outline btn-sm" onClick={() => viewResults(s)}>
                                 View →
@@ -504,6 +549,18 @@ export default function HomePage() {
                             {(s.status === "pending" || s.status === "processing") && (
                               <button className="btn btn-outline btn-sm" onClick={() => startProcessing(s)}>
                                 Track →
+                              </button>
+                            )}
+                            {user.role === "examiner" && s.status !== "processing" && (
+                              <button className="btn btn-ghost btn-sm" onClick={() => openEdit(s)}
+                                style={{ color: "var(--blue2)" }}>
+                                Edit
+                              </button>
+                            )}
+                            {user.role === "examiner" && s.status !== "processing" && (
+                              <button className="btn btn-ghost btn-sm" onClick={() => setDeletingId(s.id)}
+                                style={{ color: "var(--red)" }}>
+                                Delete
                               </button>
                             )}
                           </td>
@@ -982,6 +1039,85 @@ export default function HomePage() {
 
         </div>
       </div>
+
+      {/* ── Edit Submission Modal ─────────────────────────────────── */}
+      {editingSub && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div className="card" style={{ width: "100%", maxWidth: 480, margin: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--navy)", marginBottom: 4 }}>Edit Submission</div>
+            <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 20 }}>
+              <code>{editingSub.reference}</code>
+            </div>
+
+            {editError && (
+              <div style={{ background: "var(--red-lt, #fff1f1)", border: "1px solid var(--red)", borderRadius: 6, padding: "8px 12px", fontSize: 13, color: "var(--red)", marginBottom: 14 }}>
+                {editError}
+              </div>
+            )}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--navy)", display: "block", marginBottom: 4 }}>Course Name *</label>
+                <input className="form-input" value={editFields.course_name}
+                  onChange={(e) => setEditFields((f) => ({ ...f, course_name: e.target.value }))} />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--navy)", display: "block", marginBottom: 4 }}>Department</label>
+                <input className="form-input" value={editFields.department}
+                  onChange={(e) => setEditFields((f) => ({ ...f, department: e.target.value }))} />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--navy)", display: "block", marginBottom: 4 }}>Level / Year</label>
+                <input className="form-input" value={editFields.level}
+                  onChange={(e) => setEditFields((f) => ({ ...f, level: e.target.value }))} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--navy)", display: "block", marginBottom: 4 }}>Duration</label>
+                  <input className="form-input" value={editFields.duration}
+                    onChange={(e) => setEditFields((f) => ({ ...f, duration: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--navy)", display: "block", marginBottom: 4 }}>Total Marks</label>
+                  <input className="form-input" value={editFields.total_marks}
+                    onChange={(e) => setEditFields((f) => ({ ...f, total_marks: e.target.value }))} />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setEditingSub(null)} disabled={editLoading}>
+                Cancel
+              </button>
+              <button className="btn btn-primary btn-sm" onClick={handleEditSave} disabled={editLoading || !editFields.course_name.trim()}>
+                {editLoading ? "Saving…" : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete Confirmation Modal ─────────────────────────────── */}
+      {deletingId && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div className="card" style={{ width: "100%", maxWidth: 380, margin: 0, textAlign: "center" }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>🗑️</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--navy)", marginBottom: 8 }}>Delete Submission?</div>
+            <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 24 }}>
+              This will permanently remove the submission, uploaded exam file, and any generated report. This cannot be undone.
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setDeletingId(null)} disabled={deleteLoading}>
+                Cancel
+              </button>
+              <button className="btn btn-sm" onClick={handleDelete} disabled={deleteLoading}
+                style={{ background: "var(--red)", color: "#fff", border: "none" }}>
+                {deleteLoading ? "Deleting…" : "Yes, Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

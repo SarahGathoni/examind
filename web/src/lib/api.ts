@@ -129,6 +129,13 @@ export const submissionsApi = {
     });
     return apiFetchForm<SubmissionOut>("/api/submissions", fd);
   },
+  update: (id: string, data: Partial<SubmissionCreate>) =>
+    apiFetch<SubmissionOut>(`/api/submissions/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  remove: (id: string) =>
+    apiFetch<void>(`/api/submissions/${id}`, { method: "DELETE" }),
   getResult: (id: string) =>
     apiFetch<ModerationResultData>(`/api/submissions/${id}/result`),
   chat: (id: string, message: string, history: ChatHistoryItem[]) =>

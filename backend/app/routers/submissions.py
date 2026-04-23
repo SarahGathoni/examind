@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db, SessionLocal
 from ..dependencies import get_current_user
 from ..models import ExamSubmission, ModerationResult, AiConfig, ModerationForm, User
-from ..schemas import SubmissionOut
+from ..schemas import SubmissionOut, SubmissionUpdate
 from ..config import settings
 
 
@@ -165,6 +165,61 @@ def get_submission(
     if current_user.role == "examiner" and sub.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
     return _sub_out(sub)
+
+
+@router.patch("/{submission_id}", response_model=SubmissionOut)
+def update_submission(
+    submission_id: str,
+    body: SubmissionUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    sub = db.query(ExamSubmission).filter(ExamSubmission.id == submission_id).first()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    if current_user.role == "examiner" and sub.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if sub.status == "processing":
+        raise HTTPException(status_code=409, detail="Cannot edit a submission while it is being processed")
+
+    for field, value in body.model_dump(exclude_none=True).items():
+        setattr(sub, field, value)
+
+    db.commit()
+    db.refresh(sub)
+    return _sub_out(sub)
+
+
+@router.delete("/{submission_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_submission(
+    submission_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    sub = db.query(ExamSubmission).filter(ExamSubmission.id == submission_id).first()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    if current_user.role == "examiner" and sub.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if sub.status == "processing":
+        raise HTTPException(status_code=409, detail="Cannot delete a submission while it is being processed")
+
+    exam_path = os.path.join(settings.UPLOADS_DIR, sub.exam_filename)
+    if os.path.exists(exam_path):
+        os.remove(exam_path)
+
+    if sub.result:
+        if sub.result.report_filename:
+            report_path = os.path.join(settings.REPORTS_DIR, sub.result.report_filename)
+            if os.path.exists(report_path):
+                os.remove(report_path)
+        result_json_path = os.path.join(settings.REPORTS_DIR, f"{submission_id}_result.json")
+        if os.path.exists(result_json_path):
+            os.remove(result_json_path)
+        db.delete(sub.result)
+
+    db.delete(sub)
+    db.commit()
 
 
 @router.get("/{submission_id}/report")
