@@ -533,14 +533,16 @@ export default function HomePage() {
                           <td>
                             {s.status === "completed" &&
                               s.report_filename && (
-                                <a
-                                  href={submissionsApi.reportUrl(s.id)}
-                                  target="_blank"
-                                  rel="noreferrer"
+                                <button
                                   className="btn btn-outline btn-sm"
+                                  onClick={() =>
+                                    submissionsApi
+                                      .downloadReport(s.id, `Moderation_Report_${s.reference}.pdf`)
+                                      .catch((e) => alert(e.message))
+                                  }
                                 >
                                   Report →
-                                </a>
+                                </button>
                               )}
                           </td>
                         </tr>

@@ -98,8 +98,8 @@ async def upload_form(
         raise HTTPException(status_code=403, detail="Access denied")
 
     ext = os.path.splitext(file.filename or "")[1].lower()
-    if ext not in (".pdf", ".docx", ".doc", ".txt"):
-        raise HTTPException(status_code=400, detail="Only PDF, DOCX, DOC or TXT files allowed.")
+    if ext not in (".pdf", ".docx", ".txt"):
+        raise HTTPException(status_code=400, detail="Only PDF, DOCX, or TXT files allowed. Legacy .doc format is not supported — please convert to .docx.")
 
     stored_name = f"form_{uuid.uuid4().hex}{ext}"
     dest = os.path.join(settings.UPLOADS_DIR, stored_name)

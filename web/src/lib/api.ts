@@ -129,7 +129,23 @@ export const submissionsApi = {
     });
     return apiFetchForm<SubmissionOut>("/api/submissions", fd);
   },
-  reportUrl: (id: string) => `${API_BASE}/api/submissions/${id}/report`,
+  downloadReport: async (id: string, filename: string): Promise<void> => {
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/api/submissions/${id}/report`, { headers });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as { detail?: string }).detail ?? `API error ${res.status}`);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
 };
 
 // ── AI Config ──────────────────────────────────────────────────────────────────
