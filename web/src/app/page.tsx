@@ -251,10 +251,9 @@ export default function HomePage() {
   function stepState(idx: number): "done" | "active" | "pending" {
     if (activeSubmission?.status === "completed") return "done";
     const thresholds = [0, 3, 6, 18];
-    if (elapsed >= thresholds[idx] && (idx < 3 || activeSubmission?.status === "completed"))
-      return idx < 3 ? "done" : "active";
-    if (elapsed >= thresholds[idx]) return "active";
-    return "pending";
+    if (elapsed < thresholds[idx]) return "pending";
+    // Steps 0-2 complete after their time threshold; step 3 stays active until done
+    return idx < 3 ? "done" : "active";
   }
 
   if (isLoading || !user) {
