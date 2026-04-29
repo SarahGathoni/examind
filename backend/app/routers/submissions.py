@@ -299,39 +299,48 @@ def chat_about_submission(
 
     from ..services.moderation_service import _http_post
 
-    if ai_cfg.provider == "gemini":
-        contents = []
-        for msg in body.history[-10:]:
-            role = "model" if msg.get("role") == "assistant" else "user"
-            contents.append({"role": role, "parts": [{"text": msg.get("content", "")}]})
-        contents.append({"role": "user", "parts": [{"text": body.message}]})
-        payload = json.dumps({
-            "systemInstruction": {"parts": [{"text": system_prompt}]},
-            "contents": contents,
-            "generationConfig": {"maxOutputTokens": 1024, "temperature": 0.3},
-        }).encode("utf-8")
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key={ai_cfg.api_key_encrypted}"
-        raw = json.loads(_http_post(url, payload, {"Content-Type": "application/json"}))
-        answer = raw["candidates"][0]["content"]["parts"][0]["text"]
-    else:
-        messages = [
-            {"role": msg.get("role", "user"), "content": msg.get("content", "")}
-            for msg in body.history[-10:]
-        ]
-        messages.append({"role": "user", "content": body.message})
-        payload = json.dumps({
-            "model": "claude-sonnet-4-6",
-            "max_tokens": 1024,
-            "system": system_prompt,
-            "messages": messages,
-        }).encode("utf-8")
-        raw = json.loads(_http_post(
-            "https://api.anthropic.com/v1/messages",
-            payload,
-            {"Content-Type": "application/json", "x-api-key": ai_cfg.api_key_encrypted,
-             "anthropic-version": "2023-06-01"},
-        ))
-        answer = raw["content"][0]["text"]
+    try:
+        if ai_cfg.provider == "gemini":
+            contents = []
+            for msg in body.history[-10:]:
+                role = "model" if msg.get("role") == "assistant" else "user"
+                contents.append({"role": role, "parts": [{"text": msg.get("content", "")}]})
+            contents.append({"role": "user", "parts": [{"text": body.message}]})
+            payload = json.dumps({
+                "systemInstruction": {"parts": [{"text": system_prompt}]},
+                "contents": contents,
+                "generationConfig": {"maxOutputTokens": 1024, "temperature": 0.3},
+            }).encode("utf-8")
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key={ai_cfg.api_key_encrypted}"
+            raw = json.loads(_http_post(url, payload, {"Content-Type": "application/json"}))
+            answer = raw["candidates"][0]["content"]["parts"][0]["text"]
+        else:
+            messages = [
+                {"role": msg.get("role", "user"), "content": msg.get("content", "")}
+                for msg in body.history[-10:]
+            ]
+            messages.append({"role": "user", "content": body.message})
+            payload = json.dumps({
+                "model": "claude-sonnet-4-6",
+                "max_tokens": 1024,
+                "system": system_prompt,
+                "messages": messages,
+            }).encode("utf-8")
+            raw = json.loads(_http_post(
+                "https://api.anthropic.com/v1/messages",
+                payload,
+                {"Content-Type": "application/json", "x-api-key": ai_cfg.api_key_encrypted,
+                 "anthropic-version": "2023-06-01"},
+            ))
+            answer = raw["content"][0]["text"]
+    except RuntimeError as e:
+        if "429" in str(e):
+            raise HTTPException(
+                status_code=429,
+                detail="AI rate limit reached. The free tier limits requests per minute — please wait 30 seconds and try again.",
+            )
+        logger.error("[chat] AI service error for submission %s: %s", submission_id, e)
+        raise HTTPException(status_code=502, detail=f"AI service error: {e}")
 
     return {"answer": answer}
 

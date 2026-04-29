@@ -10,6 +10,7 @@ Handles:
 import logging
 import os
 import json
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime
@@ -174,18 +175,26 @@ def _parse_ai_json(raw: str, provider: str) -> dict:
         raise RuntimeError(f"{provider} returned invalid JSON: {e}") from e
 
 
-def _http_post(url: str, payload: bytes, headers: dict) -> bytes:
+def _http_post(url: str, payload: bytes, headers: dict, retry_on_429: bool = False) -> bytes:
     req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
-    try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            return resp.read()
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8", errors="replace")
-        logger.error("HTTP %s from %s: %s", e.code, url, body)
-        raise RuntimeError(f"API returned HTTP {e.code}: {body}") from e
-    except urllib.error.URLError as e:
-        logger.error("Network error calling %s: %s", url, e.reason)
-        raise RuntimeError(f"Network error: {e.reason}") from e
+    max_attempts = 3 if retry_on_429 else 1
+    for attempt in range(max_attempts):
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                return resp.read()
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", errors="replace")
+            if e.code == 429 and attempt < max_attempts - 1:
+                wait = 20 * (attempt + 1)
+                logger.warning("Rate limited (429), retrying in %ds (attempt %d/%d)", wait, attempt + 1, max_attempts - 1)
+                time.sleep(wait)
+                continue
+            logger.error("HTTP %s from %s: %s", e.code, url, body)
+            raise RuntimeError(f"API returned HTTP {e.code}: {body}") from e
+        except urllib.error.URLError as e:
+            logger.error("Network error calling %s: %s", url, e.reason)
+            raise RuntimeError(f"Network error: {e.reason}") from e
+    raise RuntimeError("Request failed after retries")
 
 
 def call_claude(prompt: str, api_key: str) -> dict:
