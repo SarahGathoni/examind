@@ -30,7 +30,9 @@ export function InstitutionManager() {
     institutionsApi
       .list()
       .then(setInstitutions)
-      .catch(() => setError("Failed to load institutions."))
+      .catch((err: unknown) =>
+        setError(err instanceof Error ? `Failed to load institutions: ${err.message}` : "Failed to load institutions.")
+      )
       .finally(() => setLoading(false));
   }, []);
 

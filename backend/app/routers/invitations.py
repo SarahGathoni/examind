@@ -1,10 +1,11 @@
 from datetime import timedelta, timezone, datetime
+from typing import Dict
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..dependencies import get_current_user, require_roles
+from ..dependencies import require_roles
 from ..models import Institution, InstitutionInvite, User
 from ..schemas import InviteCreate, InviteOut, InviteInfo, InviteAccept
 from ..security import hash_password
@@ -85,7 +86,7 @@ def get_invite(token: str, db: Session = Depends(get_db)):
     return InviteInfo(institution_name=invite.institution.name, email=invite.email)
 
 
-@router.post("/{token}/accept", response_model=dict)
+@router.post("/{token}/accept", response_model=Dict[str, str])
 def accept_invite(token: str, body: InviteAccept, db: Session = Depends(get_db)):
     """Public endpoint — create the institution admin account and mark invite used."""
     invite = db.query(InstitutionInvite).filter(InstitutionInvite.token == token).first()
