@@ -11,5 +11,18 @@ class Settings(BaseSettings):
     UPLOADS_DIR: str = "./uploads"
     REPORTS_DIR: str = "./reports"
 
+    # Email (SMTP) — leave blank to disable email sending
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = "noreply@examind.io"
+    SMTP_USE_TLS: bool = True
+
+    # Public URL of the frontend (used in invite emails)
+    FRONTEND_URL: str = "http://localhost:3000"
+
+    INVITE_EXPIRE_HOURS: int = 72
+
 
 settings = Settings()

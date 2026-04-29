@@ -1,4 +1,5 @@
 import uuid
+import secrets
 from datetime import datetime, timezone
 from sqlalchemy import (
     String, Boolean, DateTime, Text, Integer, Float,
@@ -142,6 +143,26 @@ class ExamSubmission(Base):
     result: Mapped["ModerationResult | None"] = relationship(
         "ModerationResult", back_populates="submission", uselist=False
     )
+
+
+class InstitutionInvite(Base):
+    __tablename__ = "institution_invites"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False,
+                                       default=lambda: secrets.token_urlsafe(32))
+    institution_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("institutions.id", ondelete="CASCADE"), nullable=False
+    )
+    email: Mapped[str] = mapped_column(String(255), nullable=False)
+    invited_by: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+    institution: Mapped["Institution"] = relationship("Institution")
 
 
 class ModerationResult(Base):

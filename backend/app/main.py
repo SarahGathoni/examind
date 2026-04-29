@@ -13,7 +13,7 @@ logging.basicConfig(
 from .database import Base, engine, create_dirs
 from .config import settings
 from .models import User
-from .routers import auth, users, institutions, schools, submissions, ai_config
+from .routers import auth, users, institutions, schools, submissions, ai_config, invitations
 
 app = FastAPI(
     title="ExamMind API",
@@ -104,6 +104,7 @@ app.include_router(institutions.router)
 app.include_router(schools.router)
 app.include_router(submissions.router)
 app.include_router(ai_config.router)
+app.include_router(invitations.router)
 
 
 # ── STATIC FILES (PDF reports) ────────────────────────────────────────────────

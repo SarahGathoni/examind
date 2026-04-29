@@ -174,6 +174,21 @@ export const aiConfigApi = {
     }),
 };
 
+// ── Invitations ────────────────────────────────────────────────────────────────
+export const invitationsApi = {
+  create: (data: InviteCreate) =>
+    apiFetch<InviteOut>("/api/invitations", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  get: (token: string) => apiFetch<InviteInfo>(`/api/invitations/${token}`),
+  accept: (token: string, data: InviteAccept) =>
+    apiFetch<{ message: string }>(`/api/invitations/${token}/accept`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+};
+
 // ── Platform Stats ─────────────────────────────────────────────────────────────
 export const statsApi = {
   platform: () => apiFetch<PlatformStats>("/api/institutions/stats"),
@@ -323,4 +338,30 @@ export interface InstitutionStats {
   approved_count: number;
   needs_revision_count: number;
   avg_score: number;
+}
+
+export interface InviteCreate {
+  institution_name: string;
+  institution_code: string;
+  institution_country: string;
+  email: string;
+}
+
+export interface InviteOut {
+  token: string;
+  institution_id: string;
+  institution_name: string;
+  email: string;
+  invite_url: string;
+  email_sent: boolean;
+}
+
+export interface InviteInfo {
+  institution_name: string;
+  email: string;
+}
+
+export interface InviteAccept {
+  full_name: string;
+  password: string;
 }

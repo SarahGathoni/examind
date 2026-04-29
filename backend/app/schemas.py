@@ -151,6 +151,35 @@ class SubmissionUpdate(BaseModel):
     total_marks: str | None = None
 
 
+# ── Invitations ───────────────────────────────────────────────────────────────
+
+class InviteCreate(BaseModel):
+    institution_name: str
+    institution_code: str
+    institution_country: str = "Kenya"
+    email: str
+
+
+class InviteOut(BaseModel):
+    token: str
+    institution_id: str
+    institution_name: str
+    email: str
+    invite_url: str
+    email_sent: bool
+
+
+class InviteInfo(BaseModel):
+    """Public info returned when validating an invite token."""
+    institution_name: str
+    email: str
+
+
+class InviteAccept(BaseModel):
+    full_name: str
+    password: str
+
+
 # ── Stats ──────────────────────────────────────────────────────────────────────
 
 class PlatformStats(BaseModel):
